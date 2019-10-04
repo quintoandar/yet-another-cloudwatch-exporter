@@ -16,58 +16,74 @@ var (
 func scrapeAwsData(config conf) ([]*tagsData, []*cloudwatchData) {
 	mux := &sync.Mutex{}
 
+	log.Println("Executing scrapeAwsData...")
+
 	cloudwatchData := make([]*cloudwatchData, 0)
 	awsInfoData := make([]*tagsData, 0)
 
 	var wg sync.WaitGroup
 
-	for i := range config.Discovery.Jobs {
-		wg.Add(1)
-		job := config.Discovery.Jobs[i]
-		go func() {
-			region := &job.Region
-			roleArn := job.RoleArn
+	if len(config.Discovery.Jobs) > 0 {
+		for i := range config.Discovery.Jobs {
+			wg.Add(1)
+			job := config.Discovery.Jobs[i]
+			log.Printf("Executing job %v \n", job)
+			log.Println("Starting go routine 01 functions")
+			go func() {
+				region := &job.Region
+				roleArn := job.RoleArn
 
-			clientCloudwatch := cloudwatchInterface{
-				client: createCloudwatchSession(region, roleArn),
-			}
+				clientCloudwatch := cloudwatchInterface{
+					client: createCloudwatchSession(region, roleArn),
+				}
 
-			clientTag := tagsInterface{
-				client:    createTagSession(region, roleArn),
-				asgClient: createASGSession(region, roleArn),
-			}
+				clientTag := tagsInterface{
+					client:    createTagSession(region, roleArn),
+					asgClient: createASGSession(region, roleArn),
+				}
 
-			resources, metrics := scrapeDiscoveryJob(job, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch)
+				log.Printf("%+v \n", &clientCloudwatch.client)
+				log.Printf("%+v \n", &clientTag.client)
 
-			mux.Lock()
-			awsInfoData = append(awsInfoData, resources...)
-			cloudwatchData = append(cloudwatchData, metrics...)
-			mux.Unlock()
-			wg.Done()
-		}()
+				resources, metrics := scrapeDiscoveryJob(job, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch)
+
+				log.Println(resources)
+				log.Println(metrics)
+
+				mux.Lock()
+				awsInfoData = append(awsInfoData, resources...)
+				cloudwatchData = append(cloudwatchData, metrics...)
+				mux.Unlock()
+				wg.Done()
+			}()
+		}
 	}
 
-	for i := range config.Static {
-		wg.Add(1)
-		job := config.Static[i]
-		go func() {
-			region := &job.Region
-			roleArn := job.RoleArn
+	if len(config.Static) > 0 {
+		for i := range config.Static {
+			wg.Add(1)
+			job := config.Static[i]
+			go func() {
+				region := &job.Region
+				roleArn := job.RoleArn
 
-			clientCloudwatch := cloudwatchInterface{
-				client: createCloudwatchSession(region, roleArn),
-			}
+				clientCloudwatch := cloudwatchInterface{
+					client: createCloudwatchSession(region, roleArn),
+				}
 
-			metrics := scrapeStaticJob(job, clientCloudwatch)
+				metrics := scrapeStaticJob(job, clientCloudwatch)
 
-			mux.Lock()
-			cloudwatchData = append(cloudwatchData, metrics...)
-			mux.Unlock()
+				mux.Lock()
+				cloudwatchData = append(cloudwatchData, metrics...)
+				mux.Unlock()
 
-			wg.Done()
-		}()
+				wg.Done()
+			}()
+		}
 	}
+
 	wg.Wait()
+
 	return awsInfoData, cloudwatchData
 }
 
@@ -121,17 +137,29 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 	mux := &sync.Mutex{}
 	var wg sync.WaitGroup
 
+	log.Println("Executing scrapeDiscoveryJob...")
+
 	tagSemaphore <- struct{}{}
 	defer func() {
 		<-tagSemaphore // Unlock
 	}()
 
+	log.Println("Client Tag get executing...")
+
 	resources, err := clientTag.get(job)
+
+	log.Printf("Number resources scanning: %v ", len(resources))
+
 	if err != nil {
 		log.Println("Couldn't describe resources: ", err.Error())
 		return
 	}
+
+	log.Println("Executing getAwsDimensions...")
+
 	commonJobDimensions := getAwsDimensions(job)
+
+	log.Printf("commonJobDimensions: %+v", commonJobDimensions)
 
 	for i := range resources {
 		resource := resources[i]
@@ -142,12 +170,20 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 			dimensions = append(dimensions, commonJobDimension)
 		}
 
+		log.Printf("%s", *resource.ID)
+		log.Println(len(job.Metrics))
+		log.Println("Starting get dimensions and metrics")
+
+		//Cria um WaitGroup no numero de metricas que foram recebidas no caso do sqs 6
+
 		wg.Add(len(job.Metrics))
 		go func() {
+
 			for j := range job.Metrics {
 				metric := job.Metrics[j]
 				dimensions = addAdditionalDimensions(dimensions, metric.AdditionalDimensions)
 				resp := getMetricsList(dimensions, resource.Service, metric, clientCloudwatch)
+
 				go func() {
 					defer wg.Done()
 					cloudwatchSemaphore <- struct{}{}
@@ -183,6 +219,7 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 			}
 		}()
 	}
+
 	wg.Wait()
 	return awsInfoData, cw
 }
