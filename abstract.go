@@ -182,39 +182,34 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 			for j := range job.Metrics {
 				metric := job.Metrics[j]
 				dimensions = addAdditionalDimensions(dimensions, metric.AdditionalDimensions)
-				resp := getMetricsList(dimensions, resource.Service, metric, clientCloudwatch)
-
+        
 				go func() {
 					defer wg.Done()
 					cloudwatchSemaphore <- struct{}{}
 					defer func() {
 						<-cloudwatchSemaphore
 					}()
-					for _, fetchedMetrics := range resp.Metrics {
 
-						data := cloudwatchData{
-							ID:                     resource.ID,
-							Metric:                 &metric.Name,
-							Service:                resource.Service,
-							Statistics:             metric.Statistics,
-							NilToZero:              &metric.NilToZero,
-							AddCloudwatchTimestamp: &metric.AddCloudwatchTimestamp,
-							Tags:                   metricTags,
-							Dimensions:             fetchedMetrics.Dimensions,
-							Region:                 &job.Region,
-						}
-
-						filter := createGetMetricStatisticsInput(
-							fetchedMetrics.Dimensions,
-							getNamespace(resource.Service),
-							metric,
-						)
-
-						data.Points = clientCloudwatch.get(filter)
-						cw = append(cw, &data)
+					data := cloudwatchData{
+						ID:                     resource.ID,
+						Metric:                 &metric.Name,
+						Service:                resource.Service,
+						Statistics:             metric.Statistics,
+						NilToZero:              &metric.NilToZero,
+						AddCloudwatchTimestamp: &metric.AddCloudwatchTimestamp,
+						Tags:                   metricTags,
+						Dimensions:             dimensions,
+						Region:                 &job.Region,
 					}
-					mux.Lock()
-					mux.Unlock()
+
+					filter := createGetMetricStatisticsInput(
+						dimensions,
+						getNamespace(resource.Service),
+						metric,
+					)
+
+					data.Points = clientCloudwatch.get(filter)
+					cw = append(cw, &data)
 				}()
 			}
 		}()
