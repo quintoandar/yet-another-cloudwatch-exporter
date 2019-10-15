@@ -93,7 +93,7 @@ func createCloudwatchSession(region *string, roleArn string) *cloudwatch.CloudWa
 			IdleConn:         120 * time.Second,
 			ConnKeepAlive:    30 * time.Second,
 			MaxAllIdleConns:  100,
-			MaxHostIdleConns: 55,
+			MaxHostIdleConns: 100,
 			ResponseHeader:   10 * time.Second,
 			TLSHandshake:     10 * time.Second,
 		}),
