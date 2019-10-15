@@ -16,7 +16,7 @@ var version = "custom-build"
 var (
 	addr                  = flag.String("listen-address", ":5000", "The address to listen on.")
 	configFile            = flag.String("config.file", "config.yml", "Path to configuration file.")
-	debug                 = flag.Bool("debug", false, "Add verbose logging")
+	debug                 = flag.Bool("debug", true, "Add verbose logging")
 	showVersion           = flag.Bool("v", false, "prints current yace version.")
 	cloudwatchConcurrency = flag.Int("cloudwatch-concurrency", 5, "Maximum number of concurrent requests to CloudWatch API")
 	tagConcurrency        = flag.Int("tag-concurrency", 5, "Maximum number of concurrent requests to Resource Tagging API")
@@ -46,7 +46,12 @@ var (
 )
 
 func metricsHandler(w http.ResponseWriter, req *http.Request) {
+	log.Println("Só vamo!")
+
 	tagsData, cloudwatchData := scrapeAwsData(config)
+
+	log.Println(tagsData)       //remove it
+	log.Println(cloudwatchData) //remove it
 
 	var metrics []*PrometheusMetric
 
@@ -75,10 +80,12 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Println("Parse config..")
+	log.Println("Parse config...")
 	if err := config.load(configFile); err != nil {
 		log.Fatal("Couldn't read ", *configFile, ":", err)
 	}
+
+	log.Printf("%+v", config.Discovery.Jobs)
 
 	cloudwatchSemaphore = make(chan struct{}, *cloudwatchConcurrency)
 	tagSemaphore = make(chan struct{}, *tagConcurrency)

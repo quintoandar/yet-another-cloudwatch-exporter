@@ -24,4 +24,3 @@ WORKDIR /root/
 
 RUN apk --no-cache add ca-certificates
 COPY --from=builder /opt/yace /usr/local/bin/yace
-

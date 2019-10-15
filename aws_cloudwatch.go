@@ -3,12 +3,16 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/http2"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -19,6 +23,17 @@ import (
 )
 
 var percentile = regexp.MustCompile(`^p(\d{1,2}(\.\d{0,2})?|100)$`)
+
+type HTTPClientSettings struct {
+	Connect          time.Duration
+	ConnKeepAlive    time.Duration
+	ExpectContinue   time.Duration
+	IdleConn         time.Duration
+	MaxAllIdleConns  int
+	MaxHostIdleConns int
+	ResponseHeader   time.Duration
+	TLSHandshake     time.Duration
+}
 
 type cloudwatchInterface struct {
 	client cloudwatchiface.CloudWatchAPI
@@ -38,14 +53,53 @@ type cloudwatchData struct {
 	Region                 *string
 }
 
+func NewHTTPClientWithSettings(httpSettings HTTPClientSettings) *http.Client {
+	tr := &http.Transport{
+		ResponseHeaderTimeout: httpSettings.ResponseHeader,
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			KeepAlive: httpSettings.ConnKeepAlive,
+			DualStack: true,
+			Timeout:   httpSettings.Connect,
+		}).DialContext,
+		MaxIdleConns:          httpSettings.MaxAllIdleConns,
+		IdleConnTimeout:       httpSettings.IdleConn,
+		TLSHandshakeTimeout:   httpSettings.TLSHandshake,
+		MaxIdleConnsPerHost:   httpSettings.MaxHostIdleConns,
+		ExpectContinueTimeout: httpSettings.ExpectContinue,
+	}
+
+	// So client makes HTTP/2 requests
+	http2.ConfigureTransport(tr)
+
+	return &http.Client{
+		Transport: tr,
+	}
+}
+
 func createCloudwatchSession(region *string, roleArn string) *cloudwatch.CloudWatch {
+
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 
-	maxCloudwatchRetries := 5
+	maxCloudwatchRetries := 20
 
-	config := &aws.Config{Region: region, MaxRetries: &maxCloudwatchRetries}
+	config := &aws.Config{
+		Region: region,
+		HTTPClient: NewHTTPClientWithSettings(HTTPClientSettings{
+			Connect:          55 * time.Second,
+			ExpectContinue:   3 * time.Second,
+			IdleConn:         120 * time.Second,
+			ConnKeepAlive:    30 * time.Second,
+			MaxAllIdleConns:  100,
+			MaxHostIdleConns: 100,
+			ResponseHeader:   10 * time.Second,
+			TLSHandshake:     10 * time.Second,
+		}),
+		MaxRetries: &maxCloudwatchRetries,
+	}
+
 	if roleArn != "" {
 		config.Credentials = stscreds.NewCredentials(sess, roleArn)
 	}
@@ -250,10 +304,18 @@ func getAwsDimensions(job job) (dimensions []*cloudwatch.Dimension) {
 }
 
 func getMetricsList(dimensions []*cloudwatch.Dimension, serviceName *string, metric metric, clientCloudwatch cloudwatchInterface) (resp *cloudwatch.ListMetricsOutput) {
+	log.Println("Get Metrics List...")
+
 	c := clientCloudwatch.client
+
 	filter := createListMetricsInput(dimensions, getNamespace(serviceName), &metric.Name)
+	log.Println("Filter")
+	log.Println(filter)
+
 	req, resp := c.ListMetricsRequest(filter)
+
 	cloudwatchAPICounter.Inc()
+
 	err := req.Send()
 
 	if err != nil {
@@ -261,6 +323,8 @@ func getMetricsList(dimensions []*cloudwatch.Dimension, serviceName *string, met
 	}
 
 	resp = filterMetricsBasedOnDimensions(dimensions, resp)
+	log.Println("Response get Metrics...")
+
 	return resp
 }
 
