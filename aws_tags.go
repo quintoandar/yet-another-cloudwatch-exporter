@@ -37,6 +37,7 @@ func createTagSession(region *string, roleArn string) *r.ResourceGroupsTaggingAP
 	}))
 
 	maxCloudwatchRetries := 20
+	level := aws.LogDebugWithHTTPBody
 
 	config := &aws.Config{
 		Region: region,
@@ -51,6 +52,7 @@ func createTagSession(region *string, roleArn string) *r.ResourceGroupsTaggingAP
 			TLSHandshake:     10 * time.Second,
 		}),
 		MaxRetries: &maxCloudwatchRetries,
+		LogLevel:   &level,
 	}
 
 	if roleArn != "" {
@@ -67,6 +69,7 @@ func createASGSession(region *string, roleArn string) autoscalingiface.AutoScali
 	}))
 
 	maxCloudwatchRetries := 20
+	level := aws.LogDebugWithHTTPBody
 
 	config := &aws.Config{
 		Region: region,
@@ -81,6 +84,7 @@ func createASGSession(region *string, roleArn string) autoscalingiface.AutoScali
 			TLSHandshake:     10 * time.Second,
 		}),
 		MaxRetries: &maxCloudwatchRetries,
+		LogLevel:   &level,
 	}
 
 	if roleArn != "" {

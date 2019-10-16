@@ -50,9 +50,6 @@ func metricsHandler(w http.ResponseWriter, req *http.Request) {
 
 	tagsData, cloudwatchData := scrapeAwsData(config)
 
-	log.Println(tagsData)       //remove it
-	log.Println(cloudwatchData) //remove it
-
 	var metrics []*PrometheusMetric
 
 	metrics = append(metrics, migrateCloudwatchToPrometheus(cloudwatchData)...)

@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/aws/aws-sdk-go/service/cloudwatch"
 )
 
 var (
@@ -46,9 +48,7 @@ func scrapeAwsData(config conf) ([]*tagsData, []*cloudwatchData) {
 				log.Printf("%+v \n", &clientTag.client)
 
 				resources, metrics := scrapeDiscoveryJob(job, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch)
-
-				log.Println(resources)
-				log.Println(metrics)
+				log.Println("Returning resources and metrics...")
 
 				mux.Lock()
 				awsInfoData = append(awsInfoData, resources...)
@@ -179,7 +179,10 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 			for j := range job.Metrics {
 				metric := job.Metrics[j]
 				dimensions = addAdditionalDimensions(dimensions, metric.AdditionalDimensions)
-				resp := getMetricsList(dimensions, resource.Service, metric, clientCloudwatch)
+
+				var emptyDimensions []*cloudwatch.Dimension
+
+				resp := getMetricsList(emptyDimensions, resource.Service, metric, clientCloudwatch)
 
 				go func() {
 					defer wg.Done()

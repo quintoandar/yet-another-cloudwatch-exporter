@@ -81,7 +81,7 @@ func createCloudwatchSession(region *string, roleArn string) *cloudwatch.CloudWa
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
-
+	level := aws.LogDebugWithHTTPBody
 	maxCloudwatchRetries := 20
 
 	config := &aws.Config{
@@ -97,6 +97,7 @@ func createCloudwatchSession(region *string, roleArn string) *cloudwatch.CloudWa
 			TLSHandshake:     10 * time.Second,
 		}),
 		MaxRetries: &maxCloudwatchRetries,
+		LogLevel:   &level,
 	}
 
 	if roleArn != "" {
