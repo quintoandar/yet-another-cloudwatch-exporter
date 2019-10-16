@@ -165,10 +165,7 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 		resource := resources[i]
 		awsInfoData = append(awsInfoData, resource)
 		metricTags := resource.metricTags(tagsOnMetrics)
-		dimensions := detectDimensionsByService(resource.Service, resource.ID, clientCloudwatch)
-		for _, commonJobDimension := range commonJobDimensions {
-			dimensions = append(dimensions, commonJobDimension)
-		}
+		dimensions := commonJobDimensions
 
 		log.Printf("%s", *resource.ID)
 		log.Println(len(job.Metrics))

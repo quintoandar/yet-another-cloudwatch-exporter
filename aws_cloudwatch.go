@@ -15,7 +15,6 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
@@ -345,62 +344,6 @@ func queryAvailableDimensions(resource string, namespace *string, clientCloudwat
 	} else if strings.HasPrefix(resource, "loadbalancer/") || strings.HasPrefix(resource, "app/") {
 		trimmedDimensionValue := strings.Replace(resource, "loadbalancer/", "", -1)
 		dimensions = append(dimensions, buildDimension("LoadBalancer", trimmedDimensionValue))
-	}
-
-	return dimensions
-}
-
-func detectDimensionsByService(service *string, resourceArn *string, clientCloudwatch cloudwatchInterface) (dimensions []*cloudwatch.Dimension) {
-	arnParsed, err := arn.Parse(*resourceArn)
-
-	if err != nil {
-		panic(err)
-	}
-
-	switch *service {
-	case "ec2":
-		dimensions = buildBaseDimension(arnParsed.Resource, "InstanceId", "instance/")
-	case "elb":
-		dimensions = buildBaseDimension(arnParsed.Resource, "LoadBalancerName", "loadbalancer/")
-	case "ecs-svc":
-		cluster := strings.Split(arnParsed.Resource, "/")[1]
-		service := strings.Split(arnParsed.Resource, "/")[2]
-		dimensions = append(dimensions, buildDimension("ClusterName", cluster))
-		dimensions = append(dimensions, buildDimension("ServiceName", service))
-	case "alb":
-		dimensions = queryAvailableDimensions(arnParsed.Resource, getNamespace(service), clientCloudwatch)
-	case "nlb":
-		dimensions = buildBaseDimension(arnParsed.Resource, "LoadBalancer", "loadbalancer/")
-	case "rds":
-		dimensions = buildBaseDimension(arnParsed.Resource, "DBInstanceIdentifier", "db:")
-	case "ec":
-		dimensions = buildBaseDimension(arnParsed.Resource, "CacheClusterId", "cluster:")
-	case "es":
-		dimensions = buildBaseDimension(arnParsed.Resource, "DomainName", "domain/")
-		dimensions = append(dimensions, buildDimension("ClientId", arnParsed.AccountID))
-	case "s3":
-		dimensions = buildBaseDimension(arnParsed.Resource, "BucketName", "")
-		dimensions = append(dimensions, buildDimension("StorageType", "AllStorageTypes"))
-	case "efs":
-		dimensions = buildBaseDimension(arnParsed.Resource, "FileSystemId", "file-system/")
-	case "ebs":
-		dimensions = buildBaseDimension(arnParsed.Resource, "VolumeId", "volume/")
-	case "vpn":
-		dimensions = buildBaseDimension(arnParsed.Resource, "VpnId", "vpn-connection/")
-	case "lambda":
-		dimensions = buildBaseDimension(arnParsed.Resource, "FunctionName", "function:")
-	case "kinesis":
-		dimensions = buildBaseDimension(arnParsed.Resource, "StreamName", "stream/")
-	case "dynamodb":
-		dimensions = buildBaseDimension(arnParsed.Resource, "TableName", "table/")
-	case "emr":
-		dimensions = buildBaseDimension(arnParsed.Resource, "JobFlowId", "cluster/")
-	case "asg":
-		dimensions = buildBaseDimension(arnParsed.Resource, "AutoScalingGroupName", "autoScalingGroupName/")
-	case "sqs":
-		dimensions = buildBaseDimension(arnParsed.Resource, "QueueName", "")
-	default:
-		log.Fatal("Not implemented cloudwatch metric: " + *service)
 	}
 
 	return dimensions
