@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-
-	"github.com/aws/aws-sdk-go/service/cloudwatch"
 )
 
 var (
@@ -49,6 +47,7 @@ func scrapeAwsData(config conf) ([]*tagsData, []*cloudwatchData) {
 
 				resources, metrics := scrapeDiscoveryJob(job, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch)
 				log.Println("Returning resources and metrics...")
+				log.Printf("%+v \n", metrics)
 
 				mux.Lock()
 				awsInfoData = append(awsInfoData, resources...)
@@ -165,31 +164,36 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 		resource := resources[i]
 		awsInfoData = append(awsInfoData, resource)
 		metricTags := resource.metricTags(tagsOnMetrics)
-		dimensions := commonJobDimensions
+		dimensions := detectDimensionsByService(resource.Service, resource.ID, clientCloudwatch)
+
+		for _, commonJobDimension := range commonJobDimensions {
+			dimensions = append(dimensions, commonJobDimension)
+		}
 
 		log.Printf("%s", *resource.ID)
 		log.Println(len(job.Metrics))
 		log.Println("Starting get dimensions and metrics")
 
 		//Cria um WaitGroup no numero de metricas que foram recebidas no caso do sqs 6
-
 		wg.Add(len(job.Metrics))
 		go func() {
 
 			for j := range job.Metrics {
 				metric := job.Metrics[j]
 				dimensions = addAdditionalDimensions(dimensions, metric.AdditionalDimensions)
+				resp := getMetricsList(dimensions, resource.Service, metric, clientCloudwatch)
 
-				var emptyDimensions []*cloudwatch.Dimension
-
-				resp := getMetricsList(emptyDimensions, resource.Service, metric, clientCloudwatch)
+				log.Println("First resp", resp)
+				log.Println("First Dimensions", dimensions)
 
 				go func() {
+
 					defer wg.Done()
 					cloudwatchSemaphore <- struct{}{}
 					defer func() {
 						<-cloudwatchSemaphore
 					}()
+
 					for _, fetchedMetrics := range resp.Metrics {
 
 						data := cloudwatchData{
@@ -204,6 +208,8 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 							Region:                 &job.Region,
 						}
 
+						log.Printf("fetchedMetrics: %+v \n r.Service: %+v \n metric: %v", fetchedMetrics.Dimensions, resource.Service, metric)
+
 						filter := createGetMetricStatisticsInput(
 							fetchedMetrics.Dimensions,
 							getNamespace(resource.Service),
@@ -211,10 +217,14 @@ func scrapeDiscoveryJob(job job, tagsOnMetrics exportedTagsOnMetrics, clientTag 
 						)
 
 						data.Points = clientCloudwatch.get(filter)
+
+						log.Println("Data Points")
+						log.Println(data)
+
+						mux.Lock()
 						cw = append(cw, &data)
+						mux.Unlock()
 					}
-					mux.Lock()
-					mux.Unlock()
 				}()
 			}
 		}()
