@@ -39,8 +39,6 @@ func scrapeAwsData(config conf) ([]*tagsData, []*cloudwatchData) {
 
 			resources, metrics := scrapeDiscoveryJob(job, config.Discovery.ExportedTagsOnMetrics, clientTag, clientCloudwatch)
 
-			log.Println("Finished scrap!")
-
 			mux.Lock()
 			awsInfoData = append(awsInfoData, resources...)
 			cloudwatchData = append(cloudwatchData, metrics...)
