@@ -5,7 +5,7 @@ WORKDIR /opt/
 COPY go.mod go.sum ./
 RUN go mod download
 
-Add ./*.go ./
+ADD ./*.go ./
 RUN go test
 
 ENV GOOS linux
@@ -29,4 +29,3 @@ WORKDIR /exporter/
 RUN apk --no-cache add ca-certificates
 COPY --from=builder /opt/yace /usr/local/bin/yace
 USER exporter
-
