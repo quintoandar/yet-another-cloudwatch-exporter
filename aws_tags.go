@@ -69,7 +69,7 @@ func createASGSession(region *string, roleArn string) autoscalingiface.AutoScali
 	}))
 
 	maxCloudwatchRetries := 20
-	level := aws.LogDebugWithHTTPBody
+	level := aws.LogDebugWithRequestErrors
 
 	config := &aws.Config{
 		Region: region,
