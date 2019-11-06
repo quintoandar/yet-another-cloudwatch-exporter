@@ -82,7 +82,7 @@ func createCloudwatchSession(region *string, roleArn string) *cloudwatch.CloudWa
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
-	level := aws.LogDebugWithHTTPBody
+	level := aws.LogDebugWithRequestErrors
 	maxCloudwatchRetries := 20
 
 	config := &aws.Config{
