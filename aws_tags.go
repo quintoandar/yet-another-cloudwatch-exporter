@@ -37,7 +37,7 @@ func createTagSession(region *string, roleArn string) *r.ResourceGroupsTaggingAP
 	}))
 
 	maxCloudwatchRetries := 20
-	level := aws.LogDebugWithHTTPBody
+	level := aws.LogDebugWithRequestErrors
 
 	config := &aws.Config{
 		Region: region,
